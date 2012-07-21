@@ -198,6 +198,35 @@ convert_cmyk_to_rgb (struct jpeg_decompress_struct *cinfo,
 	}
 }
 
+static void
+convert_ycbcr_to_rgb (struct jpeg_decompress_struct *cinfo,
+                      guchar **lines)
+{
+	gint i, j;
+
+	g_return_if_fail (cinfo != NULL);
+	g_return_if_fail (cinfo->output_components == 4);
+	g_return_if_fail (cinfo->out_color_space == JCS_YCbCr);
+
+	for (i = cinfo->rec_outbuf_height - 1; i >= 0; i--) {
+		guchar *p;
+
+		p = lines[i];
+		for (j = 0; j < cinfo->output_width; j++) {
+                        int y, cb, cr;
+			y = p[0];
+			cb = p[1];
+			cr = p[2];
+
+                        p[0] = 1.164 * (y - 16) + 1.596 * (cr - 128);
+                        p[1] = 1.164 * (y - 16) - 0.813 * (cr - 128) - 0.391 * (cb - 128);
+                        p[2] = 1.164 * (y - 16) + 2.018 * (cb - 128);
+			p[3] = 255;
+			p += 4;
+		}
+	}
+}
+
 typedef struct {
   struct jpeg_source_mgr pub;	/* public fields */
 
@@ -559,6 +588,9 @@ gdk_pixbuf__jpeg_image_load (FILE *f, GError **error)
 		    case JCS_CMYK:
 		      convert_cmyk_to_rgb (&cinfo, lines);
 		      break;
+                    case JCS_YCbCr:
+                      convert_ycbcr_to_rgb (&cinfo, lines);
+                      break;
 		    default:
 		      g_object_unref (pixbuf);
 		      if (error && *error == NULL) {
@@ -772,6 +804,9 @@ gdk_pixbuf__jpeg_image_load_lines (JpegProgContext  *context,
                         break;
                 case JCS_CMYK:
                         convert_cmyk_to_rgb (cinfo, lines);
+                        break;
+                case JCS_YCbCr:
+                        convert_ycbcr_to_rgb (cinfo, lines);
                         break;
                 default:
                         if (error && *error == NULL) {
